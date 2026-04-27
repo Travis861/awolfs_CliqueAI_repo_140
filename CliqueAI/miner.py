@@ -8,8 +8,10 @@ from CliqueAI.protocol import MaximumCliqueOfLambdaGraph
 from common.base.miner import BaseMinerNeuron
 
 
-SEARCH_MARGIN_SECONDS = 0.45
-DEFAULT_SEARCH_SECONDS = 8.0
+SEARCH_MARGIN_SECONDS = 4.0
+DEFAULT_SEARCH_SECONDS = 5.5
+MAX_SEARCH_SECONDS = 6.5
+EXACT_SEARCH_NODE_LIMIT = 220
 
 
 def _iter_bits(mask: int):
@@ -233,7 +235,11 @@ def solve_maximal_clique(
     else:
         budget = max(
             1.0,
-            min(float(timeout) * 0.9, float(timeout) - SEARCH_MARGIN_SECONDS),
+            min(
+                MAX_SEARCH_SECONDS,
+                float(timeout) * 0.45,
+                float(timeout) - SEARCH_MARGIN_SECONDS,
+            ),
         )
     deadline = start + budget
 
@@ -241,7 +247,11 @@ def solve_maximal_clique(
     degrees = [mask.bit_count() for mask in neighbor_masks]
     all_vertices = (1 << number_of_nodes) - 1
 
-    seed_deadline = min(deadline, start + max(0.2, budget * 0.15))
+    if number_of_nodes <= EXACT_SEARCH_NODE_LIMIT:
+        seed_deadline = min(deadline, start + max(0.2, budget * 0.25))
+    else:
+        seed_deadline = deadline
+
     best = _seed_with_greedy_search(
         all_vertices=all_vertices,
         neighbor_masks=neighbor_masks,
@@ -249,14 +259,15 @@ def solve_maximal_clique(
         deadline=seed_deadline,
     )
 
-    search_state = CliqueSearchState(
-        deadline=deadline,
-        neighbor_masks=neighbor_masks,
-        degrees=degrees,
-        best=best,
-    )
-    _expand_max_clique([], all_vertices, search_state)
-    best = search_state.best
+    if number_of_nodes <= EXACT_SEARCH_NODE_LIMIT and time.monotonic() < deadline:
+        search_state = CliqueSearchState(
+            deadline=deadline,
+            neighbor_masks=neighbor_masks,
+            degrees=degrees,
+            best=best,
+        )
+        _expand_max_clique([], all_vertices, search_state)
+        best = search_state.best
 
     if not best:
         best_vertex = max(range(number_of_nodes), key=lambda v: degrees[v])
