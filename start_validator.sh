@@ -12,7 +12,7 @@ if [ ! -d "$VENV_DIR" ]; then
 fi
 
 source "$VENV_DIR/bin/activate"
-pip install -e .
+# pip install -e .
 
 if pm2 list | grep -q "$VALIDATOR_NAME"; then
     pm2 delete "$VALIDATOR_NAME" 2>/dev/null || true
