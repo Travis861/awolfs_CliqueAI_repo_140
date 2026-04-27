@@ -1,0 +1,36 @@
+{
+    "name": "MaximumCliqueOfLambdaGraph",
+    "timeout": 30.0,
+    "total_size": 0,
+    "header_size": 0,
+    "dendrite": {
+        "status_code": null,
+        "status_message": null,
+        "process_time": null,
+        "ip": null,
+        "port": null,
+        "version": null,
+        "nonce": null,
+        "uuid": null,
+        "hotkey": null,
+        "signature": null
+    },
+    "axon": {
+        "status_code": null,
+        "status_message": null,
+        "process_time": null,
+        "ip": null,
+        "port": null,
+        "version": null,
+        "nonce": null,
+        "uuid": null,
+        "hotkey": null,
+        "signature": null
+    },
+    "computed_body_hash": "",
+    "uuid": "5ce9af7e-3cbb-422d-9768-ff139214dcfe",
+    "label": "general",
+    "number_of_nodes": 90,
+    "encoded_matrix": "    }NSz51NG*MwOM=OAjw[kw99kQ|BS_#p8lDQ^>pqAw%)K8&L)$.aW4mY|4X 49r~O=ql9<5Cr3l=STnG.cd)),9=_ns.CinZ$Mzd*# 2qF}veZ9+~Wcxn<$,RCWfZ6L=F/=SC><CU&*v)@|(HaIW3r{pA-[Nj`]zU_bQ!t6SQO9nA.Th~-99;jzU3OnVoUhQ+~|g<e#,O/h&$?6^WXi`V5w(5e,=m]U;0]Zo2U0g4(Ibx5avf=[On@yL-xGWCU~J835&,pUb9Ub!~5>lb4 `fiO,CA~BK^&LhZRko}!@x,h`FIyx>pax+`z0J%+/KxOG8|/%P@.,#cA;`+hz~Gf-s}*#H:_t?g_`f-9McI[:|NBqbF4*HStzN+@Q4<kXQ%P9g}QNOA_-^xpwkPMxSLoR0Xh]hh0KY<^//SAc9.=*sIEB$b1hfkXy#=fX6b(4!CD/{,;i(5zn/vY@E!Q2reImYh1Xe_HFvU,Z8Dc*8Le139I<pwH]R1Pb{52{gvzCI? *I|EXDQ*e-Ht8_Z:hUdOBP: ]IGe2Sx5uf6R-KGaH!54E-9a_CU;4zyXdZR(4vz$Sv.r1Ar=lwQ1kQQP=YqnJ6J{fU$fsm9=;fS2@Ql~^",
+    "maximum_clique": []
+}

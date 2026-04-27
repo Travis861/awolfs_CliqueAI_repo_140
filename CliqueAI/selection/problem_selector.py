@@ -1,0 +1,62 @@
+import random
+
+from CliqueAI.selection.miner_selector import MinerSelector
+from pydantic import BaseModel
+
+max_int = 1e9
+
+
+class Range(BaseModel):
+    min: int
+    max: int
+
+
+class Problem(BaseModel):
+    label: str
+    vertex_range: Range
+    edge_range: Range
+    difficulty: float
+
+
+PROBLEMS = [
+    Problem(
+        label="general",
+        vertex_range=Range(min=290, max=300),
+        edge_range=Range(min=100, max=max_int),
+        difficulty=0.2,
+    ),
+    Problem(
+        label="general",
+        vertex_range=Range(min=490, max=500),
+        edge_range=Range(min=0, max=max_int),
+        difficulty=0.4,
+    ),
+    Problem(
+        label="general",
+        vertex_range=Range(min=690, max=700),
+        edge_range=Range(min=0, max=max_int),
+        difficulty=1,
+        # difficulty=0.6,
+    ),
+    # Problem(
+    #     label="general",
+    #     vertex_range=Range(min=890, max=900),
+    #     edge_range=Range(min=0, max=max_int),
+    #     difficulty=0.8,
+    # ),
+]
+
+TIME_LIMITS = [6, 7.5, 10, 15, 30]
+
+
+class ProblemSelector:
+    def __init__(self, miner_selector: MinerSelector):
+        self.miner_selector = miner_selector
+
+    def select_problem(self):
+        selected_problem = random.choice(PROBLEMS)
+        return selected_problem
+
+    def select_time_limit(self):
+        selected_time_limit = random.choice(TIME_LIMITS)
+        return selected_time_limit
