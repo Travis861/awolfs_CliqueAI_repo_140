@@ -213,17 +213,19 @@ class BaseMinerNeuron(BaseNeuron):
             bt.logging.warning("Received a request without a dendrite or hotkey.")
             return True, "Missing dendrite or hotkey"
 
-        uid = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
-        if (
-            not self.config.blacklist.allow_non_registered
-            and synapse.dendrite.hotkey not in self.metagraph.hotkeys
-        ):
-            # Ignore requests from un-registered entities.
-            bt.logging.trace(
-                f"Blacklisting un-registered hotkey {synapse.dendrite.hotkey}"
-            )
-            return True, "Unrecognized hotkey"
+        if synapse.dendrite.hotkey not in self.metagraph.hotkeys:
+            if not self.config.blacklist.allow_non_registered:
+                bt.logging.trace(
+                    f"Blacklisting un-registered hotkey {synapse.dendrite.hotkey}"
+                )
+                return True, "Unrecognized hotkey"
 
+            bt.logging.warning(
+                f"Allowing request from non-registered hotkey {synapse.dendrite.hotkey}"
+            )
+            return False, "Non-registered hotkey allowed"
+
+        uid = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)
         if self.config.blacklist.force_validator_permit:
             # If the config is set to force validator permit, then we should only allow requests from validators.
             if not self.metagraph.validator_permit[uid]:
@@ -259,6 +261,12 @@ class BaseMinerNeuron(BaseNeuron):
         """
         if synapse.dendrite is None or synapse.dendrite.hotkey is None:
             bt.logging.warning("Received a request without a dendrite or hotkey.")
+            return 0.0
+
+        if synapse.dendrite.hotkey not in self.metagraph.hotkeys:
+            bt.logging.warning(
+                f"Received priority request from non-registered hotkey {synapse.dendrite.hotkey}"
+            )
             return 0.0
 
         caller_uid = self.metagraph.hotkeys.index(
