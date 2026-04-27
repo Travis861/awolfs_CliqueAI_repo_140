@@ -6,7 +6,6 @@ numpy>=2.2.6
 setuptools>=68
 networkx==3.4.2
 pytest
-substrate-interface
 bittensor==9.10.0
 bittensor-cli>=9.13.0
 httpx
