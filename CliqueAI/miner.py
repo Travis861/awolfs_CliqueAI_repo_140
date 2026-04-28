@@ -14,7 +14,11 @@ SEARCH_MARGIN_SECONDS = 4.0
 DEFAULT_SEARCH_SECONDS = 5.5
 MAX_SEARCH_SECONDS = 6.5
 EXACT_SEARCH_NODE_LIMIT = 220
+BRON_KERBOSCH_NODE_LIMIT = 90
 RANDOM_PICK_POOL = 10
+LARGE_GRAPH_DETERMINISTIC_FRACTION = 0.30
+THERMAL_MIN_DROP = 1
+THERMAL_MAX_DROP = 14
 
 
 def _iter_bits(mask: int):
@@ -151,7 +155,7 @@ def _rebuild_from_partial_clique(
         key=lambda vertex: (degrees[vertex], rng.random()),
     )
 
-    for removed in ordered_removals[: min(len(ordered_removals), 12)]:
+    for removed in ordered_removals[: min(len(ordered_removals), THERMAL_MAX_DROP)]:
         if time.monotonic() >= deadline:
             break
 
@@ -171,6 +175,83 @@ def _rebuild_from_partial_clique(
         if len(rebuilt) > len(best):
             best = rebuilt
             bt.logging.info(f"Rebuilt clique size: {len(best)}")
+
+    return best
+
+
+def _thermal_cycling_clique(
+    seed_clique: list[int],
+    all_vertices: int,
+    neighbor_masks: list[int],
+    degrees: list[int],
+    rng: Random,
+    deadline: float,
+) -> list[int]:
+    if time.monotonic() >= deadline:
+        return seed_clique
+
+    best = _repair_clique(seed_clique, neighbor_masks) if seed_clique else []
+    current = best
+    cycle = 0
+
+    while time.monotonic() < deadline:
+        if current:
+            heat = max(THERMAL_MIN_DROP, min(THERMAL_MAX_DROP, 1 + cycle // 8))
+            drop_count = min(len(current), heat)
+            removals = sorted(
+                current,
+                key=lambda vertex: (degrees[vertex], rng.random()),
+            )[:drop_count]
+            removal_set = set(removals)
+            partial = [vertex for vertex in current if vertex not in removal_set]
+            candidates = _common_neighbors(partial, all_vertices, neighbor_masks)
+            for vertex in partial:
+                candidates &= ~(1 << vertex)
+        else:
+            partial = []
+            candidates = all_vertices
+
+        quenched = partial + _randomized_greedy_clique(
+            candidates,
+            neighbor_masks,
+            degrees,
+            rng,
+            deadline,
+        )
+        quenched = _repair_clique(quenched, neighbor_masks)
+        quenched = _rebuild_from_partial_clique(
+            quenched,
+            all_vertices,
+            neighbor_masks,
+            degrees,
+            rng,
+            deadline,
+        )
+
+        if len(quenched) >= len(current) or rng.random() < 0.08:
+            current = quenched
+        if len(quenched) > len(best):
+            best = quenched
+            bt.logging.info(f"Thermal cycling clique size: {len(best)}")
+
+        if cycle % 5 == 4:
+            fresh = _repair_clique(
+                _randomized_greedy_clique(
+                    all_vertices,
+                    neighbor_masks,
+                    degrees,
+                    rng,
+                    deadline,
+                ),
+                neighbor_masks,
+            )
+            if len(fresh) > len(best):
+                best = fresh
+                bt.logging.info(f"Thermal restart clique size: {len(best)}")
+            if len(fresh) >= len(current):
+                current = fresh
+
+        cycle += 1
 
     return best
 
@@ -260,11 +341,57 @@ def _expand_max_clique(
         candidates &= ~bit
 
 
+def _bron_kerbosch_maximal_cliques(
+    current: list[int],
+    candidates: int,
+    excluded: int,
+    state: CliqueSearchState,
+) -> None:
+    if not state.has_time():
+        return
+
+    if not candidates and not excluded:
+        state.update_best(current)
+        return
+
+    pivot_pool = candidates | excluded
+    if pivot_pool:
+        pivot = max(
+            _iter_bits(pivot_pool),
+            key=lambda vertex: (candidates & state.neighbor_masks[vertex]).bit_count(),
+        )
+        vertices_to_expand = candidates & ~state.neighbor_masks[pivot]
+    else:
+        vertices_to_expand = candidates
+
+    while vertices_to_expand:
+        if not state.has_time():
+            return
+        if len(current) + candidates.bit_count() <= len(state.best):
+            return
+
+        bit = vertices_to_expand & -vertices_to_expand
+        vertex = bit.bit_length() - 1
+        current.append(vertex)
+        _bron_kerbosch_maximal_cliques(
+            current,
+            candidates & state.neighbor_masks[vertex],
+            excluded & state.neighbor_masks[vertex],
+            state,
+        )
+        current.pop()
+
+        candidates &= ~bit
+        excluded |= bit
+        vertices_to_expand &= ~bit
+
+
 def _seed_with_greedy_search(
     all_vertices: int,
     neighbor_masks: list[int],
     degrees: list[int],
     deadline: float,
+    deterministic_deadline: float,
     rng: Random,
 ) -> list[int]:
     ordered_vertices = sorted(
@@ -276,7 +403,7 @@ def _seed_with_greedy_search(
     attempt = 0
     max_attempts = max(len(neighbor_masks) * 2, 128)
 
-    while attempt < max_attempts and time.monotonic() < deadline:
+    while attempt < max_attempts and time.monotonic() < deterministic_deadline:
         if attempt < len(ordered_vertices):
             first = ordered_vertices[attempt]
         else:
@@ -305,7 +432,7 @@ def _seed_with_greedy_search(
             deadline,
         )
         clique = _repair_clique(clique, neighbor_masks)
-        clique = _rebuild_from_partial_clique(
+        clique = _thermal_cycling_clique(
             clique,
             all_vertices,
             neighbor_masks,
@@ -351,16 +478,32 @@ def solve_maximal_clique(
 
     if number_of_nodes <= EXACT_SEARCH_NODE_LIMIT:
         seed_deadline = min(deadline, start + max(0.2, budget * 0.25))
+        deterministic_deadline = seed_deadline
     else:
         seed_deadline = deadline
+        deterministic_deadline = min(
+            deadline,
+            start + max(0.35, budget * LARGE_GRAPH_DETERMINISTIC_FRACTION),
+        )
 
     best = _seed_with_greedy_search(
         all_vertices=all_vertices,
         neighbor_masks=neighbor_masks,
         degrees=degrees,
         deadline=seed_deadline,
+        deterministic_deadline=deterministic_deadline,
         rng=rng,
     )
+
+    if number_of_nodes <= BRON_KERBOSCH_NODE_LIMIT and time.monotonic() < deadline:
+        search_state = CliqueSearchState(
+            deadline=min(deadline, time.monotonic() + max(0.1, budget * 0.15)),
+            neighbor_masks=neighbor_masks,
+            degrees=degrees,
+            best=best,
+        )
+        _bron_kerbosch_maximal_cliques([], all_vertices, 0, search_state)
+        best = search_state.best
 
     if number_of_nodes <= EXACT_SEARCH_NODE_LIMIT and time.monotonic() < deadline:
         search_state = CliqueSearchState(
